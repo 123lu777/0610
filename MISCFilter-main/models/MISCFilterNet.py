@@ -48,13 +48,22 @@ class SCM(nn.Module):
         return self.conv(x)
 
 class FAM(nn.Module):
+    # Upgraded Feature Aggregation Module with Channel Attention
     def __init__(self, channel, BasicConv=BasicConv):
         super(FAM, self).__init__()
         self.merge = BasicConv(channel, channel, kernel_size=3, stride=1, relu=False)
+        self.ca = nn.Sequential(
+            nn.AdaptiveAvgPool2d(1),
+            nn.Conv2d(channel, channel // 8, 1, padding=0, bias=True),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(channel // 8, channel, 1, padding=0, bias=True),
+            nn.Sigmoid()
+        )
     def forward(self, x1, x2):
         x = x1 * x2
         out = x1 + self.merge(x)
-        return out
+        attn = self.ca(out)
+        return out * attn
 
 class SpatialAttention(nn.Module):
     def __init__(self):
