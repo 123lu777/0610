@@ -1,4 +1,19 @@
-from models.doconv_pytorch import *
+import torchvision.ops as ops
+
+class DCNv4_Proxy(nn.Module):
+    # A proxy implementation for DCNv4 (using torchvision DeformConv2d)
+    # In practice, you can replace this with the official DCNv4 CUDA module.
+    def __init__(self, in_channels, out_channels, kernel_size, stride, padding, bias=False, groups=1):
+        super(DCNv4_Proxy, self).__init__()
+        self.offset_conv = nn.Conv2d(in_channels, 3 * kernel_size * kernel_size, kernel_size=3, padding=1)
+        self.dcn = ops.DeformConv2d(in_channels, out_channels, kernel_size, stride=stride, padding=padding, bias=bias, groups=groups)
+        
+    def forward(self, x):
+        out = self.offset_conv(x)
+        o1, o2, mask = torch.chunk(out, 3, dim=1)
+        offset = torch.cat((o1, o2), dim=1)
+        mask = torch.sigmoid(mask)
+        return self.dcn(x, offset, mask)
 
 
 class BasicConv(nn.Module):
@@ -13,9 +28,12 @@ class BasicConv(nn.Module):
         padding = kernel_size // 2
         layers = list()
         if transpose:
-            padding = kernel_size // 2 - 1
             layers.append(
-                nn.ConvTranspose2d(in_channel, out_channel, kernel_size, padding=padding, stride=stride, bias=bias, groups=groups))
+                nn.Sequential(
+                    nn.Conv2d(in_channel, out_channel * (stride ** 2), 3, padding=1, bias=bias),
+                    nn.PixelShuffle(stride)
+                )
+            )
         else:
             layers.append(
                 nn.Conv2d(in_channel, out_channel, kernel_size, padding=padding, stride=stride, bias=bias, groups=groups))
@@ -39,12 +57,15 @@ class BasicConv_do(nn.Module):
         padding = kernel_size // 2
         layers = list()
         if transpose:
-            padding = kernel_size // 2 - 1
             layers.append(
-                nn.ConvTranspose2d(in_channel, out_channel, kernel_size, padding=padding, stride=stride, bias=bias))
+                nn.Sequential(
+                    nn.Conv2d(in_channel, out_channel * (stride ** 2), 3, padding=1, bias=bias),
+                    nn.PixelShuffle(stride)
+                )
+            )
         else:
-            layers.append(
-                DOConv2d(in_channel, out_channel, kernel_size, padding=padding, stride=stride, bias=bias, groups=groups))
+            # Replaced with DCNv4_Proxy based on user requirement
+            layers.append(DCNv4_Proxy(in_channel, out_channel, kernel_size, stride=stride, padding=padding, bias=bias, groups=groups))
         if norm:
             layers.append(norm_method(out_channel))
         if relu:
@@ -69,12 +90,15 @@ class BasicConv_do_eval(nn.Module):
         padding = kernel_size // 2
         layers = list()
         if transpose:
-            padding = kernel_size // 2 - 1
             layers.append(
-                nn.ConvTranspose2d(in_channel, out_channel, kernel_size, padding=padding, stride=stride, bias=bias))
+                nn.Sequential(
+                    nn.Conv2d(in_channel, out_channel * (stride ** 2), 3, padding=1, bias=bias),
+                    nn.PixelShuffle(stride)
+                )
+            )
         else:
-            layers.append(
-                DOConv2d_eval(in_channel, out_channel, kernel_size, padding=padding, stride=stride, bias=bias, groups=groups))
+            # Replaced with DCNv4_Proxy based on user requirement
+            layers.append(DCNv4_Proxy(in_channel, out_channel, kernel_size, stride=stride, padding=padding, bias=bias, groups=groups))
         if norm:
             layers.append(norm_method(out_channel))
         if relu:

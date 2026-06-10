@@ -1,6 +1,6 @@
 import os
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = '0,1,2,3,4,5,6,7'
+os.environ["CUDA_VISIBLE_DEVICES"] = '0,1'
 
 import torch
 torch.backends.cudnn.benchmark = True
@@ -63,6 +63,7 @@ val_meta = args.val_meta
 num_epochs = args.num_epochs
 batch_size = args.batch_size
 val_epochs = args.val_epochs
+print_epochs = args.print_epochs
 
 start_lr = 2e-4
 end_lr = 1e-6
@@ -203,10 +204,6 @@ for epoch in range(start_epoch, num_epochs + 1):
         print("[epoch %d PSNR: %.4f --- best_epoch %d Best_PSNR %.4f]" % (epoch, psnr_val_rgb, best_epoch, best_psnr))
         with open(log_dir,"a+") as f:
             f.write("[epoch %d PSNR: %.4f --- best_epoch %d Best_PSNR %.4f] \n" % (epoch, psnr_val_rgb, best_epoch, best_psnr))
-        torch.save({'epoch': epoch, 
-                    'state_dict': model_restoration.state_dict(),
-                    'optimizer' : optimizer.state_dict()
-                    }, os.path.join(model_dir,f"model_epoch_{epoch}.pth")) 
 
     scheduler.step()
     
@@ -218,6 +215,10 @@ for epoch in range(start_epoch, num_epochs + 1):
         f.write("Epoch: {}\tTime: {:.4f}\tLoss: {:.4f}\tLearningRate {:.6f} \n".format(epoch, time.time()-epoch_start_time, epoch_loss, scheduler.get_lr()[0]))
         f.write("------------------------------------------------------------------\n")
 
+    torch.save({'epoch': epoch, 
+                'state_dict': model_restoration.state_dict(),
+                'optimizer' : optimizer.state_dict()
+                }, os.path.join(model_dir,f"model_epoch_{epoch}.pth"))
     torch.save({'epoch': epoch, 
                 'state_dict': model_restoration.state_dict(),
                 'optimizer' : optimizer.state_dict()
