@@ -63,6 +63,7 @@ val_meta = args.val_meta
 num_epochs = args.num_epochs
 batch_size = args.batch_size
 val_epochs = args.val_epochs
+print_epochs = args.print_epochs
 
 start_lr = 2e-4
 end_lr = 1e-6
