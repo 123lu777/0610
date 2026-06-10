@@ -56,6 +56,17 @@ class FAM(nn.Module):
         out = x1 + self.merge(x)
         return out
 
+class SpatialAttention(nn.Module):
+    def __init__(self):
+        super(SpatialAttention, self).__init__()
+        self.conv = nn.Conv2d(2, 1, kernel_size=7, padding=3)
+    def forward(self, x):
+        avg_out = torch.mean(x, dim=1, keepdim=True)
+        max_out, _ = torch.max(x, dim=1, keepdim=True)
+        y = torch.cat([avg_out, max_out], dim=1)
+        y = torch.sigmoid(self.conv(y))
+        return x * y
+
 def CharbonnierFunc(data, epsilon=0.001):
     return torch.mean(torch.sqrt(data ** 2 + epsilon ** 2))
 
@@ -161,6 +172,12 @@ class MISCKernelNet(nn.Module):
         self.modulePad = torch.nn.ReplicationPad2d([self.kernel_pad, self.kernel_pad, self.kernel_pad, self.kernel_pad])
         self.moduleKernel = misckernel.FunctionKernel.apply
 
+        self.flow_attention = nn.ModuleList([
+            SpatialAttention(),
+            SpatialAttention(),
+            SpatialAttention()
+        ])
+
         self.KernelPredictFlow = nn.ModuleList([
                 BasicConv(base_channel * 4, 2, kernel_size=3, relu=False, stride=1),
                 BasicConv(base_channel * 2, 2, kernel_size=3, relu=False, stride=1),
@@ -246,9 +263,9 @@ class MISCKernelNet(nn.Module):
 
         z = self.Decoder[0](z)
         
-
-        s3_kernal_flow = self.KernelPredictFlow[0](z)
-        s3_kernal_flowmask = self.KernelPredictFlowMask[0](z)
+        z_attn3 = self.flow_attention[0](z)
+        s3_kernal_flow = self.KernelPredictFlow[0](z_attn3)
+        s3_kernal_flowmask = self.KernelPredictFlowMask[0](z_attn3)
         s3_kernal_flowmask = self.sigmoid(s3_kernal_flowmask)
 
         zx4 = torch.cat([z,x_4],1)
@@ -287,8 +304,9 @@ class MISCKernelNet(nn.Module):
         z = self.Convs[0](z)
         z = self.Decoder[1](z)
 
-        s2_kernal_flow = self.KernelPredictFlow[1](z) + self.flowup(s3_kernal_flow)*2
-        s2_kernal_flowmask = self.KernelPredictFlowMask[1](z)
+        z_attn2 = self.flow_attention[1](z)
+        s2_kernal_flow = self.KernelPredictFlow[1](z_attn2) + self.flowup(s3_kernal_flow)*2
+        s2_kernal_flowmask = self.KernelPredictFlowMask[1](z_attn2)
         s2_kernal_flowmask = self.sigmoid(s2_kernal_flowmask)
 
         zx2 = torch.cat([z,x_2],1)
@@ -328,8 +346,9 @@ class MISCKernelNet(nn.Module):
 
         z = self.Decoder[2](z)
 
-        s1_kernal_flow = self.KernelPredictFlow[2](z) + self.flowup(s2_kernal_flow)*2
-        s1_kernal_flowmask = self.KernelPredictFlowMask[2](z)
+        z_attn1 = self.flow_attention[2](z)
+        s1_kernal_flow = self.KernelPredictFlow[2](z_attn1) + self.flowup(s2_kernal_flow)*2
+        s1_kernal_flowmask = self.KernelPredictFlowMask[2](z_attn1)
         s1_kernal_flowmask = self.sigmoid(s1_kernal_flowmask)
 
         zx = torch.cat([z,x],1)

@@ -13,9 +13,12 @@ class BasicConv(nn.Module):
         padding = kernel_size // 2
         layers = list()
         if transpose:
-            padding = kernel_size // 2 - 1
             layers.append(
-                nn.ConvTranspose2d(in_channel, out_channel, kernel_size, padding=padding, stride=stride, bias=bias, groups=groups))
+                nn.Sequential(
+                    nn.Conv2d(in_channel, out_channel * (stride ** 2), 3, padding=1, bias=bias),
+                    nn.PixelShuffle(stride)
+                )
+            )
         else:
             layers.append(
                 nn.Conv2d(in_channel, out_channel, kernel_size, padding=padding, stride=stride, bias=bias, groups=groups))
@@ -39,12 +42,18 @@ class BasicConv_do(nn.Module):
         padding = kernel_size // 2
         layers = list()
         if transpose:
-            padding = kernel_size // 2 - 1
             layers.append(
-                nn.ConvTranspose2d(in_channel, out_channel, kernel_size, padding=padding, stride=stride, bias=bias))
+                nn.Sequential(
+                    nn.Conv2d(in_channel, out_channel * (stride ** 2), 3, padding=1, bias=bias),
+                    nn.PixelShuffle(stride)
+                )
+            )
         else:
-            layers.append(
-                DOConv2d(in_channel, out_channel, kernel_size, padding=padding, stride=stride, bias=bias, groups=groups))
+            # Replaced DOConv2d with Large-Kernel Depthwise Convolution (kernel_size=7)
+            lk_ksize = 7 if kernel_size == 3 else kernel_size
+            lk_pad = lk_ksize // 2
+            layers.append(nn.Conv2d(in_channel, in_channel, lk_ksize, padding=lk_pad, stride=stride, bias=bias, groups=in_channel))
+            layers.append(nn.Conv2d(in_channel, out_channel, 1, bias=bias))
         if norm:
             layers.append(norm_method(out_channel))
         if relu:
@@ -69,12 +78,18 @@ class BasicConv_do_eval(nn.Module):
         padding = kernel_size // 2
         layers = list()
         if transpose:
-            padding = kernel_size // 2 - 1
             layers.append(
-                nn.ConvTranspose2d(in_channel, out_channel, kernel_size, padding=padding, stride=stride, bias=bias))
+                nn.Sequential(
+                    nn.Conv2d(in_channel, out_channel * (stride ** 2), 3, padding=1, bias=bias),
+                    nn.PixelShuffle(stride)
+                )
+            )
         else:
-            layers.append(
-                DOConv2d_eval(in_channel, out_channel, kernel_size, padding=padding, stride=stride, bias=bias, groups=groups))
+            # Replaced DOConv2d_eval with Large-Kernel Depthwise Convolution (kernel_size=7)
+            lk_ksize = 7 if kernel_size == 3 else kernel_size
+            lk_pad = lk_ksize // 2
+            layers.append(nn.Conv2d(in_channel, in_channel, lk_ksize, padding=lk_pad, stride=stride, bias=bias, groups=in_channel))
+            layers.append(nn.Conv2d(in_channel, out_channel, 1, bias=bias))
         if norm:
             layers.append(norm_method(out_channel))
         if relu:
